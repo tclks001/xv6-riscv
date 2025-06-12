@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.c": "c",
+        "types.h": "c",
+        "time.h": "c",
+        "stat.h": "c",
+        "fs.h": "c",
+        "user.h": "c",
+        "spinlock.h": "c",
+        "limits": "c"
+    }
+}
