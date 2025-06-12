@@ -8,6 +8,7 @@
         "user.h": "c",
         "spinlock.h": "c",
         "limits": "c",
+<<<<<<< HEAD
         "typeinfo": "c",
         "bit": "c",
         "memlayout.h": "c",
@@ -17,5 +18,8 @@
         "defs.h": "c",
         "sleeplock.h": "c",
         "sysinfo.h": "c"
+=======
+        "typeinfo": "c"
+>>>>>>> 72f0364 (1)
     }
 }
