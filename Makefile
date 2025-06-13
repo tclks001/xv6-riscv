@@ -147,6 +147,8 @@ UPROGS=\
 	$U/_xargs\
 	$U/_uptime\
 	$U/_pwd\
+	$U/_trace\
+	$U/_sysinfotest\
 	
 	
 

@@ -8,6 +8,14 @@
         "user.h": "c",
         "spinlock.h": "c",
         "limits": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "bit": "c",
+        "memlayout.h": "c",
+        "riscv.h": "c",
+        "proc.h": "c",
+        "param.h": "c",
+        "defs.h": "c",
+        "sleeplock.h": "c",
+        "sysinfo.h": "c"
     }
 }
