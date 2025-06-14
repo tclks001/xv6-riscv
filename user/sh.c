@@ -86,7 +86,13 @@ void runcmd(struct cmd *cmd)
     ecmd = (struct execcmd *)cmd;
     if (ecmd->argv[0] == 0)
       exit(1);
+    // fprintf(2, "--- exec %s ---\n", ecmd->argv[0]);
     exec(ecmd->argv[0], ecmd->argv);
+    char pullpath[128] = "";
+    pullpath[0] = '/';
+    strcpy(pullpath + 1, ecmd->argv[0]);
+    ecmd->argv[0] = pullpath;
+    exec(ecmd->argv[0], ecmd->argv); // try again at root directory
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
