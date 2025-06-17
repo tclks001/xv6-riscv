@@ -508,6 +508,12 @@ xv6 使用从内核的末尾到`PHYSTOP`的物理内存用于运行时分配。�
 
 xv6 使用进程的页表，不仅是为了告诉硬件如何映射用户虚拟地址，而且唯一记录了哪个物理内存页分配给了那个进程。这就是为什么释放用户内存（在`uvmunmap`中）需要检查用户的页表。
 
+## 3.8 代码：exec
+
+`exec`是创建一个地址空间的用户部分的系统调用。它从一个保存在文件系统的文件初始化地址空间的用户部分。`exec`（kernel/exec.c 第 13 行）使用`namei`（kernel/exec.c 第 26 行）打开指定的二进制文件`path`，将在第八章解释。之后，它读取了 ELF 头部。xv6 应用程序是用广泛使用的 ELF 格式描述的，定义在 https://github.com/mit-pdos/xv6-riscv/blob/riscv//kernel/elf.h 。ELF 二进制文件包括 ELF 头部`struct elfhdr`（kernel/elf.h 第 6 行），之后是一系列程序段头部`struct proghdr`（kernel/elf.h 第 25 行）。每个`proghdr`描述了一段程序，其必须加载进内存中；xv6 程序只有一个程序段头部，但别的系统可能有指令和数据分离的段。
+
+第一步是快速检测文件是否包括一个 ELF 二进制文件。
+
 # 四、陷阱和系统调用
 
 ## 4.1 RISC-V 陷阱机制
