@@ -149,6 +149,7 @@ void runcmd(struct cmd *cmd)
   }
   exit(0);
 }
+/*
 void getpwd(char *path)
 {
   struct stat st, parent_st;
@@ -216,6 +217,11 @@ void getpwd(char *path)
   }
   return;
 }
+*/
+void getpwd(char *path)
+{
+}
+
 int getcmd(char *buf, int nbuf)
 {
   char path[512] = "";

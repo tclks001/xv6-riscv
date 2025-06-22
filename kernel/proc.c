@@ -146,6 +146,15 @@ found:
     return 0;
   }
 
+  // Set up a kernel page table for the process.
+  p->kernel_pagetable = kvmmake();
+  if (p->kernel_pagetable == 0)
+  {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -504,7 +513,16 @@ void scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        // Load the process's kernel page table into the
+        // core's satp register.
+
+        // printf(" ==> %d\n", p->pid);
+
+        // Switch to user process.
         swtch(&c->context, &p->context);
+
+        // printf(" <== %d\n", p->pid);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
