@@ -13,7 +13,7 @@
 #define LIST 4
 #define BACK 5
 
-#define MAX_DEPTH 10
+#define MAX_DEPTH 64
 
 #define MAXARGS 10
 
@@ -218,15 +218,79 @@ void getpwd(char *path)
   return;
 }
 */
-void getpwd(char *path)
+char pwd[1024];
+char pwd_stack[MAX_DEPTH][DIRSIZ];
+int pwd_depth = 0;
+void update_pwd(char *path)
 {
+  // printf("update_pwd: %s\n", path);
+  if (path[0] == '/')
+  {
+    pwd_depth = 0; // change to root directory
+    ++path;        // skip '/'
+  }
+  char *p = path;
+  for (p; *p; ++p)
+  {
+    if (*p == '/')
+    {
+      *p = 0;
+      // printf("update_pwd_dir: %s\n", path);
+      if (strcmp(path, "..") == 0)
+      {
+        // change to parent directory
+        --pwd_depth;
+      }
+      else if (strcmp(path, ".") == 0)
+      {
+        // do nothing
+        continue;
+      }
+      else
+      {
+        // change to child directory
+        strcpy(pwd_stack[pwd_depth++], path);
+      }
+      path = p + 1;
+    }
+  }
+  if (*path)
+  {
+    // printf("update_pwd_dir: %s\n", path);
+    if (strcmp(path, "..") == 0)
+    {
+      // change to parent directory
+      --pwd_depth;
+    }
+    else if (strcmp(path, ".") == 0)
+    {
+      // do nothing
+    }
+    else
+    {
+      // change to child directory
+      strcpy(pwd_stack[pwd_depth++], path);
+    }
+  }
+
+  // update pwd
+
+  memset(pwd, 0, sizeof(pwd));
+  for (int i = 0; i < pwd_depth; ++i)
+  {
+    pwd[strlen(pwd)] = '/';
+    // printf("pwd_stack[%d] = %s\n", i, pwd_stack[i]);
+    strcpy(pwd + strlen(pwd), pwd_stack[i]);
+  }
+  if (pwd_depth == 0)
+  {
+    *pwd = '/';
+  }
 }
 
 int getcmd(char *buf, int nbuf)
 {
-  char path[512] = "";
-  getpwd(path);
-  fprintf(2, "%s $ ", path);
+  fprintf(2, "%s $ ", pwd);
   // write(2, "$ ", 2);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
@@ -239,6 +303,7 @@ int main(void)
 {
   static char buf[100];
   int fd;
+  *pwd = '/';
 
   // Ensure that three file descriptors are open.
   while ((fd = open("console", O_RDWR)) >= 0)
@@ -258,7 +323,14 @@ int main(void)
       // Chdir must be called by the parent, not the child.
       buf[strlen(buf) - 1] = 0; // chop \n
       if (chdir(buf + 3) < 0)
+      {
         fprintf(2, "cannot cd %s\n", buf + 3);
+      }
+      else
+      {
+        update_pwd(buf + 3);
+      }
+
       continue;
     }
     if (fork1() == 0)
