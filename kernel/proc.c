@@ -145,16 +145,16 @@ found:
     release(&p->lock);
     return 0;
   }
-
-  // Set up a kernel page table for the process.
-  p->kernel_pagetable = kvmmake();
-  if (p->kernel_pagetable == 0)
-  {
-    freeproc(p);
-    release(&p->lock);
-    return 0;
-  }
-
+  /*
+    // Set up a kernel page table for the process.
+    p->kernel_pagetable = kvmmake();
+    if (p->kernel_pagetable == 0)
+    {
+      freeproc(p);
+      release(&p->lock);
+      return 0;
+    }
+  */
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
