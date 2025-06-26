@@ -7,7 +7,7 @@
 #include "fs.h"
 
 /*
- * the kernel's page table.
+ * the kernel's shared page table.
  */
 pagetable_t kernel_pagetable;
 
@@ -17,45 +17,85 @@ extern char trampoline[]; // trampoline.S
 
 // Print a pagetable in the format of :
 //
-// page table 0x0000000000000000
-// ..0: pte 0x0000000000000000 pa 0x0000000000000000
-// .. ..0: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. ..0: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. ..1: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. ..2: pte 0x0000000000000000 pa 0x0000000000000000
-// ..255: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. 511: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. ..510: pte 0x0000000000000000 pa 0x0000000000000000
-// .. .. ..511: pte 0x0000000000000000 pa 0x0000000000000000
+// ..0             : pte 0x0000000021fd2801 pa 0x0000000087f4a000 ----v
+// .. ..0          : pte 0x0000000021fd2401 pa 0x0000000087f49000 ----v
+// .. .. ..0       : pte 0x0000000021fd2c1b pa 0x0000000087f4b000 ux-rv
+// .. .. ..1       : pte 0x0000000021fd2017 pa 0x0000000087f48000 u-wrv
+// .. .. ..2       : pte 0x0000000021fd1c07 pa 0x0000000087f47000 --wrv
+// .. .. ..3       : pte 0x0000000021fd1817 pa 0x0000000087f46000 u-wrv
+// ..255           : pte 0x0000000021fd3401 pa 0x0000000087f4d000 ----v
+// .. ..511        : pte 0x0000000021fd3001 pa 0x0000000087f4c000 ----v
+// .. .. ..510     : pte 0x0000000021fd5807 pa 0x0000000087f56000 --wrv
+// .. .. ..511     : pte 0x000000002000180b pa 0x0000000080006000 -x-rv
 void vmprint(pagetable_t pagetable)
 {
-  printf("page table %p\n", pagetable);
+  vmprint_lv(pagetable, 0);
+}
+
+void vmprint_lv(pagetable_t pagetable, int level)
+{
+  if (level == 0)
+    printf("page table %p\n", pagetable);
   for (int i = 0; i < 512; ++i)
   {
-    pte_t *pte = &pagetable[i];
-    if (*pte & PTE_V)
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) // if valid
     {
-      uint64 pa = PTE2PA(*pte);
-      printf("..%d: pte %p pa %p\n", i, *pte, pa);
-      pagetable_t pagetable_2 = (pagetable_t)PTE2PA(*pte);
-      for (int j = 0; j < 512; ++j)
+      uint64 pa = PTE2PA(pte);
+      for (int j = 0; j < level; ++j)
+        printf(".. ");
+
+      char priv[5];
+      if (pte & PTE_U)
       {
-        pte_t *pte_2 = &pagetable_2[j];
-        if (*pte_2 & PTE_V)
-        {
-          uint64 pa_2 = PTE2PA(*pte_2);
-          printf(".. ..%d: pte %p pa %p\n", j, *pte_2, pa_2);
-          pagetable_t pagetable_3 = (pagetable_t)PTE2PA(*pte_2);
-          for (int k = 0; k < 512; ++k)
-          {
-            pte_t *pte_3 = &pagetable_3[k];
-            if (*pte_3 & PTE_V)
-            {
-              uint64 pa_3 = PTE2PA(*pte_3);
-              printf(".. .. ..%d: pte %p pa %p\n", k, *pte_3, pa_3);
-            }
-          }
-        }
+        priv[0] = 'u';
+      }
+      else
+      {
+        priv[0] = '-';
+      }
+      if (pte & PTE_X)
+      {
+        priv[1] = 'x';
+      }
+      else
+      {
+        priv[1] = '-';
+      }
+      if (pte & PTE_W)
+      {
+        priv[2] = 'w';
+      }
+      else
+      {
+        priv[2] = '-';
+      }
+      if (pte & PTE_R)
+      {
+        priv[3] = 'r';
+      }
+      else
+      {
+        priv[3] = '-';
+      }
+      if (pte & PTE_V)
+      {
+        priv[4] = 'v';
+      }
+      else
+      {
+        priv[4] = '-';
+      }
+
+      printf("..%d", i);
+      for (int j = 2; j > level; --j)
+        printf("   ");
+
+      printf("\t: pte %p pa %p %s\n", pte, pa, priv);
+      if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) // not leaf
+      {
+        pagetable_t child = (pagetable_t)PTE2PA(pte);
+        vmprint_lv(child, level + 1);
       }
     }
   }
@@ -98,7 +138,8 @@ kvmmake(void)
 // Initialize the one kernel_pagetable
 void kvminit(void)
 {
-  kernel_pagetable = kvmmake();
+  // kernel_pagetable = kvmmake();
+  kernel_pagetable = kvminit_pagetable();
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -112,6 +153,45 @@ void kvminithart()
 
   // flush stale entries from the TLB.
   sfence_vma();
+}
+
+// Initialize a kernel page table for per process.
+// Including UART0, VIRTIO0, CLINT, PLIC,
+// kernel text, kernel data, trampoline.
+void kvmmap_pagetable(pagetable_t pagetable)
+{
+  // uart registers
+  kvmmap(pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+
+  // virtio mmio disk interface
+  kvmmap(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+
+  // CLINT
+  kvmmap(pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+
+  // PLIC
+  kvmmap(pagetable, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+
+  // map kernel text executable and read-only.
+  kvmmap(pagetable, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
+
+  // map kernel data and the physical RAM we'll make use of.
+  kvmmap(pagetable, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  kvmmap(pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+}
+
+// Create per-process kernel page table.
+pagetable_t
+kvminit_pagetable()
+{
+  pagetable_t pagetable = (pagetable_t)kalloc();
+  memset(pagetable, 0, PGSIZE);
+  kvmmap_pagetable(pagetable);
+  printf("kvminit_pagetable: done\n");
+  return pagetable;
 }
 
 // Return the address of the PTE in page table pagetable
@@ -180,6 +260,41 @@ void kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
   if (mappages(kpgtbl, va, sz, pa, perm) != 0)
     panic("kvmmap");
+}
+
+// Using a kernel page table, map a kernel virtual address
+// to a physical address.
+uint64
+kvm2pa(pagetable_t kpgtbl, uint64 va)
+{
+  uint64 off = va & (PGSIZE - 1); // offset in page
+  pte_t *pte;
+  uint64 pa;
+
+  pte = walk(kpgtbl, va, 0); // get the page table entry
+  if (pte == 0)
+    panic("kvm2pa");
+  if ((*pte & PTE_V) == 0)
+    panic("kvm2pa");
+  pa = PTE2PA(*pte) | off; // get the physical address
+  return pa;
+}
+
+// Free a process's kernel page table hierarchies.
+// Won't free the physical memory the leaves refer to.
+void kvm_free_kpagetable(pagetable_t kpgtbl)
+{
+  for (int i = 0; i < 512; ++i)
+  {
+    pte_t pte = kpgtbl[i];
+    if (pte & PTE_V && (pte & (PTE_R | PTE_W | PTE_X)) == 0) // vaild and not leaf
+    {
+      uint64 child = PTE2PA(pte);
+      kvm_free_kpagetable((pagetable_t)child);
+      kpgtbl[i] = 0;
+    }
+  }
+  kfree((void *)kpgtbl);
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -444,14 +559,14 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 
   while (len > 0)
   {
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
+    va0 = PGROUNDDOWN(srcva);       // ignore offset
+    pa0 = walkaddr(pagetable, va0); // get physical address
     if (pa0 == 0)
       return -1;
-    n = PGSIZE - (srcva - va0);
+    n = PGSIZE - (srcva - va0); // PGSIZE - offset, means bytes to copy (<= PGSIZE)
     if (n > len)
       n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+    memmove(dst, (void *)(pa0 + (srcva - va0)), n); // copy bytes to dst
 
     len -= n;
     dst += n;

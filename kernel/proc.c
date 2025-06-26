@@ -56,7 +56,11 @@ void procinit(void)
   {
     initlock(&p->lock, "proc");
     p->state = UNUSED;
-    p->kstack = KSTACK((int)(p - proc));
+    // Because we will use the kernel page table for the process,
+    // we don't need to allocate the kernel stack in the shared
+    // kernel page table. We allocate it only in the process's
+    // page table.(see allocproc())
+    // p->kstack = KSTACK((int)(p - proc));
   }
 }
 
@@ -102,6 +106,16 @@ int allocpid()
   return pid;
 }
 
+// Create an kernel page table for a given process.
+pagetable_t
+proc_kpagetable(struct proc *p)
+{
+  pagetable_t kpagetable = kvminit_pagetable();
+  // mappages(kpagetable, KSTACK((int)0), PGSIZE, (uint64)p->kstack, PTE_R | PTE_W);
+  mappages(kpagetable, TRAPFRAME, PGSIZE, (uint64)p->trapframe, PTE_R | PTE_W);
+  return kpagetable;
+}
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -145,22 +159,27 @@ found:
     release(&p->lock);
     return 0;
   }
-  /*
-    // Set up a kernel page table for the process.
-    p->kernel_pagetable = kvmmake();
-    if (p->kernel_pagetable == 0)
-    {
-      freeproc(p);
-      release(&p->lock);
-      return 0;
-    }
-  */
+
+  // Here we initialize the kernel stack for the new process.(lab 3)
+  // build an independant kernel page table for the process.
+  p->kpagetable = proc_kpagetable(p);
+  // p->kpagetable = kvminit_pagetable();
+
+  // allocate a physical page for the kernel stack.
+  char *pa = kalloc();
+  if (pa == 0)
+    panic("kalloc");
+  uint64 va = KSTACK((int)0); // kernel stack at virtual address KSTACK((int)0)
+  kvmmap(p->kpagetable, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  p->kstack = va;
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  printf("allocproc: allocated new process %d\n", p->pid);
   return p;
 }
 
@@ -175,6 +194,29 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if (p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+
+  // Free the kernel page table for the process.
+
+  // First, free the kernel stack.
+  // By default xv6, the kernel stack is allocated in the shared kernel page table.
+  // So we don't need to free it.
+  // But now we allocate it in the process's page table.
+  // So we need to free it.
+
+  void *kstack_pa = (void *)kvm2pa(p->kpagetable, p->kstack);
+  kfree(kstack_pa);
+  p->kstack = 0;
+
+  // Then free the kernel page table itself.
+  // We should only free the kernel page table itself,
+  // not the physical memory it refers to.
+  // That's because the physical memory is shared by all processes.
+  // proc_freepagetable() will free the physical memory, so we can't do it here.
+  // However, kfree(p->kpagetable) will only free the root kernel page table,
+  // not all the page tables in the kernel page table hierarchy.
+  // So we must implement kvm_free_kpagetable() to free all.
+  kvm_free_kpagetable(p->kpagetable);
+
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -487,6 +529,7 @@ int nproc(void)
 //    via swtch back to the scheduler.
 void scheduler(void)
 {
+  printf("scheduler: on\n");
   struct proc *p;
   struct cpu *c = mycpu();
 
@@ -516,11 +559,24 @@ void scheduler(void)
 
         // Load the process's kernel page table into the
         // core's satp register.
+        w_satp(MAKE_SATP(p->kpagetable));
+        sfence_vma();
+        // printf("scheduler: running process %d\n", p->pid);
+
+        // printf("pgtbl:\n");
+        // vmprint(p->pagetable);
+
+        // printf("\nkpgtbl:\n");
+        // vmprint(p->kpagetable);
 
         // printf(" ==> %d\n", p->pid);
 
         // Switch to user process.
         swtch(&c->context, &p->context);
+
+        // return to the shared kernel page table.
+        kvminithart();
+        // printf("scheduler: return to kernel\n");
 
         // printf(" <== %d\n", p->pid);
 

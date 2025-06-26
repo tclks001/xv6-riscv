@@ -1,25 +1,22 @@
 {
-    "files.associations": {
-        "*.c": "c",
-        "types.h": "c",
-        "time.h": "c",
-        "stat.h": "c",
-        "fs.h": "c",
-        "user.h": "c",
-        "spinlock.h": "c",
-        "limits": "c",
-<<<<<<< HEAD
-        "typeinfo": "c",
-        "bit": "c",
-        "memlayout.h": "c",
-        "riscv.h": "c",
-        "proc.h": "c",
-        "param.h": "c",
-        "defs.h": "c",
-        "sleeplock.h": "c",
-        "sysinfo.h": "c"
-=======
-        "typeinfo": "c"
->>>>>>> 72f0364 (1)
-    }
+        "files.associations": {
+                "*.c": "c",
+                "types.h": "c",
+                "time.h": "c",
+                "stat.h": "c",
+                "fs.h": "c",
+                "user.h": "c",
+                "spinlock.h": "c",
+                "limits": "c",
+                "typeinfo": "c",
+                "bit": "c",
+                "memlayout.h": "c",
+                "riscv.h": "c",
+                "proc.h": "c",
+                "param.h": "c",
+                "defs.h": "c",
+                "sleeplock.h": "c",
+                "sysinfo.h": "c",
+                "type_traits": "c"
+        }
 }
