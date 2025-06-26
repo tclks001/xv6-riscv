@@ -15,7 +15,6 @@ mkfs
 kernel/kernel
 user/usys.S
 .gdbinit
-.vscode
 .dir-locals.el
 .editorconfig
 .gdbinit.tmpl-riscv

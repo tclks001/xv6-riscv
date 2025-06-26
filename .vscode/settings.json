@@ -17,6 +17,24 @@
                 "defs.h": "c",
                 "sleeplock.h": "c",
                 "sysinfo.h": "c",
-                "type_traits": "c"
+                "type_traits": "c",
+                "string.h": "c",
+                "random": "c",
+                "numbers": "c",
+                "file.h": "c",
+                "array": "c",
+                "string_view": "c",
+                "initializer_list": "c",
+                "string": "c",
+                "memory": "c",
+                "compare": "c",
+                "functional": "c",
+                "tuple": "c",
+                "utility": "c",
+                "fcntl.h": "c",
+                "ostream": "c",
+                "atomic": "c",
+                "optional": "c",
+                "syscall.h": "c"
         }
 }
