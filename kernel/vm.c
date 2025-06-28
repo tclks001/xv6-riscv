@@ -140,6 +140,7 @@ void kvminit(void)
 {
   // kernel_pagetable = kvmmake();
   kernel_pagetable = kvminit_pagetable();
+  kvmmap(kernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -165,10 +166,10 @@ void kvmmap_pagetable(pagetable_t pagetable)
 
   // virtio mmio disk interface
   kvmmap(pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
+  /*
   // CLINT
   kvmmap(pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
-
+  */
   // PLIC
   kvmmap(pagetable, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
 
@@ -323,7 +324,10 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     if ((pte = walk(pagetable, a, 1)) == 0)
       return -1;
     if (*pte & PTE_V)
+    {
+      vmprint(pagetable);
       panic("mappages: remap");
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if (a == last)
       break;
@@ -439,6 +443,26 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return newsz;
 }
 
+// Like uvmalloc, shrink memory from oldsz to newsz,
+// but not free underlying physical memory.
+// Used to update the kernel page table to be the same
+// as the user page table.
+// Returns the new size.
+uint64
+kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if (newsz >= oldsz)
+    return oldsz;
+
+  if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
+  {
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0); // do not free physical memory
+  }
+
+  return newsz;
+}
+
 // Recursively free page-table pages.
 // All leaf mappings must already have been removed.
 void freewalk(pagetable_t pagetable)
@@ -508,6 +532,36 @@ err:
   return -1;
 }
 
+// Copy the mappings from user page table to kernel page table.
+// Only copies the mappings, not the underlying physical memory.
+// -1 on error, 0 on success.
+int kvmcopymappings(pagetable_t old, pagetable_t new, uint64 start, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  for (i = PGROUNDUP(start); i < start + sz; i += PGSIZE)
+  {
+    if ((pte = walk(old, i, 0)) == 0)
+    {
+      panic("kvmcopymappings: pte should exist");
+    }
+    if ((*pte & PTE_V) == 0)
+    {
+      panic("kvmcopymappings: page not present");
+    }
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte) & ~PTE_U; // disable user access to the kernel page
+    if (mappages(new, i, PGSIZE, pa, flags) != 0)
+      goto err;
+  }
+  return 0;
+err:
+  uvmunmap(new, PGROUNDUP(start), sz / PGSIZE, 0);
+  return -1;
+}
+
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void uvmclear(pagetable_t pagetable, uint64 va)
@@ -555,6 +609,8 @@ int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 // Return 0 on success, -1 on error.
 int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  return copyin_new(dst, (char *)srcva, len);
+  /*
   uint64 n, va0, pa0;
 
   while (len > 0)
@@ -573,6 +629,7 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  */
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -581,6 +638,8 @@ int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 // Return 0 on success, -1 on error.
 int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  return copyinstr_new(dst, (char *)srcva, max);
+  /*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -623,4 +682,5 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   {
     return -1;
   }
+  */
 }

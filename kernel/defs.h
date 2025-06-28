@@ -180,6 +180,12 @@ void vmprint(pagetable_t pagetable);
 pagetable_t kvminit_pagetable();
 uint64 kvm2pa(pagetable_t kpgtbl, uint64 va);
 void kvm_free_kpagetable(pagetable_t kpgtbl);
+uint64 kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+int kvmcopymappings(pagetable_t old, pagetable_t new, uint64 start, uint64 sz);
+
+// vmcopyin.c
+int copyin_new(char *, const char *, uint64);
+int copyinstr_new(char *, const char *, uint64);
 
 // plic.c
 void plicinit(void);

@@ -211,6 +211,7 @@ freeproc(struct proc *p)
   // We should only free the kernel page table itself,
   // not the physical memory it refers to.
   // That's because the physical memory is shared by all processes.
+  // (Or have been freed by the user page table already)
   // proc_freepagetable() will free the physical memory, so we can't do it here.
   // However, kfree(p->kpagetable) will only free the root kernel page table,
   // not all the page tables in the kernel page table hierarchy.
@@ -297,6 +298,7 @@ void userinit(void)
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
+  kvmcopymappings(p->pagetable, p->kpagetable, 0, p->sz);
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;     // user program counter
@@ -314,20 +316,28 @@ void userinit(void)
 // Return 0 on success, -1 on failure.
 int growproc(int n)
 {
-  uint64 sz;
+  uint64 sz, newsz;
   struct proc *p = myproc();
 
   sz = p->sz;
   if (n > 0)
   {
-    if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0)
+    if ((newsz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0)
     {
       return -1;
     }
+    if (kvmcopymappings(p->pagetable, p->kpagetable, sz, n) < 0)
+    {
+      uvmdealloc(p->pagetable, newsz, sz);
+      return -1;
+    }
+    sz = newsz;
   }
   else if (n < 0)
   {
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    newsz = uvmdealloc(p->pagetable, sz, sz + n);
+    kvmdealloc(p->kpagetable, sz, newsz);
+    sz = newsz;
   }
   p->sz = sz;
   return 0;
@@ -348,7 +358,9 @@ int fork(void)
   }
 
   // Copy user memory from parent to child.
-  if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
+  // Also copy the user page table to the child's kernel page table.
+  if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0 ||
+      kvmcopymappings(np->pagetable, np->kpagetable, 0, p->sz) < 0)
   {
     freeproc(np);
     release(&np->lock);

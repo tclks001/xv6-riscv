@@ -66,6 +66,8 @@ int exec(char *path, char **argv)
     uint64 sz1;
     if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0)
       goto bad;
+    if (sz1 >= PLIC) // prevent the size from exceeding PLIC
+      goto bad;
     sz = sz1;
     if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
@@ -122,6 +124,11 @@ int exec(char *path, char **argv)
     if (*s == '/')
       last = s + 1;
   safestrcpy(p->name, last, sizeof(p->name));
+
+  // clean up old kernel mappings (withouth freeing physical memory)
+  // and remaps the new ones.
+  uvmunmap(p->kpagetable, 0, PGROUNDUP(oldsz) / PGSIZE, 0);
+  kvmcopymappings(pagetable, p->kpagetable, 0, sz);
 
   // Commit to the user image.
   oldpagetable = p->pagetable;
