@@ -647,3 +647,17 @@ xv6 用一个包含`uservec`的“跳板”（trampoline）页满足了这些限
 `copyinstr`（kernel/vm.c 第 406 行）从用户页表`pagetable`里的虚拟地址`srcva`拷贝最多`max`个字节到`dst`。它使用了`walkaddr`（调用了`walk`）来遍历软件的页表，决定`srcva`的物理地址`pa0`。因为内核映射所有的物理 RAM 地址到相同的内核虚拟地址，`copyinstr`可以直接从`pa0`拷贝字符串字节到`dst`。`walkaddr`（kernel/vm.c 第 95 行）会检查用户提供的虚拟地址是否是进程的用户地址空间的一部分，所以程序不能欺骗内核来读取别的进程的内存。类似的函数`copyout`，从内核拷贝数据到用户指定的地址。
 
 ## 4.5 内核空间的陷阱
+
+对于正在执行的是用户还是内核代码，xv6 配置 CPU 陷阱寄存器的方式有所不同。如果内核正在 CPU 上执行，那么内核将`stvec`指向汇编代码`kernelvec`（kernel/kernelvec.S 第 10 行）。因为 xv6 已经在内核里了，所以`kernelvec`可以依赖于指向内核页表的`satp`，其栈指针指向一个有效的内核栈。`kernelvec`保存所有的寄存器，从而终端代码可以最终恢复它们，不会弄乱。
+
+`kernelvec`把寄存器保存在被中断的内核线程的栈上，这是因为寄存器的值是属于这个线程的。如果这个陷阱导致切换到了别的线程，这么做就更加重要，这样的话陷阱会准确返回到新线程的栈上，而终端线程保存的寄存器被安全地留在了它的栈上。
+
+`kernelvec`在保存寄存器后跳到`kerneltrap`（kernel/trap.c 第 134 行）。`kerneltrap`能处理两种陷阱：设备中断和异常。它调用`devinit`（kernel/trap.c 第 177 行）检查并处理设备中断。如果陷阱不是设备中断，它一定是异常，如果发生在 xv6 内核，那么就一定是致命错误；内核调用`panic`并停止执行。
+
+如果`kerneltrap`由时钟中断调用，并且进程的内核线程正在运行（而不是调度器线程），那么`kerneltrap`会调用`yield`来给另一个线程运行的机会。在某个时点，那些线程中的某一个会让出，并且使线程和它的`kerneltrap`再次恢复。第七章解释`yield`发生了什么。
+
+当`kerneltrap`结束后，它需要返回到被陷阱中断的代码处。因为`yield`可能修改了保存的`sepc`，以及在`sstatus`保存的原模式，所以`kerneltrap`在启动时会保存它们。它现在恢复那些控制寄存器，并返回到`kernelvec`（kernel/kernelvec.S 第 48 行）。`kernelvec`从栈中弹出保存的寄存器，然后执行`sret`，这会把`sepc`拷贝到`pc`，然后恢复中断的内核代码。
+
+不妨设想一下，如果`kerneltrap`由于时钟中断调用了`yield`，那么陷阱的返回是怎么样的。
+
+在 CPU 从用户空间进入内核时，xv6 把 CPU 的`stvec`设置为`kernelvec`；见`usertrap`（kernel/trap.c 第 29 行）。有一个时间窗口，此时内核正在执行，但`stvec`设置到了`uservec`，在这个时间窗口内，把设备中断无效化是至关重要的。幸运的是，RISC-V 总是在开始一个陷阱时把中断无效掉，xv6 直到它设置了`stvec`之后才会重新启用。
