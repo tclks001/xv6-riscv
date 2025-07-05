@@ -9,6 +9,10 @@
         # kernel.ld causes this code to start at 
         # a page boundary.
         #
+        # ".S" asm code can use "#include" to include other
+        # or "#define" to define macros.
+        #
+
 
 #include "riscv.h"
 #include "memlayout.h"
@@ -34,9 +38,12 @@ uservec:
         # each process has a separate p->trapframe memory area,
         # but it's mapped to the same virtual address
         # (TRAPFRAME) in every process's user page table.
+        # defined in memlayout.h: TRAPFRAME (TRAMPOLINE - PGSIZE)
+        # li: load immediate
         li a0, TRAPFRAME
         
         # save the user registers in TRAPFRAME
+        # sd: store doubleword (64-bit)
         sd ra, 40(a0)
         sd sp, 48(a0)
         sd gp, 56(a0)
