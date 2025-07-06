@@ -150,6 +150,8 @@ UPROGS=\
 	$U/_trace\
 	$U/_sysinfotest\
 	$U/_call\
+	$U/_calltest\
+	$U/_printftest\
 #	$U/_pwd\
 	
 	
