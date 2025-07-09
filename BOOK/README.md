@@ -689,3 +689,8 @@ COW fork 的基本方案是，父进程和子进程起初分享所有的物理�
 1. 函数`copyin`和`copyinstr`在软件上遍历用户页表。建立内核页表，使得内核有用户程序的映射，`copyin`和`sopyinstr`可以使用`memcpy`来吧系统调用参数拷贝到内核空间，依赖于硬件遍历用户页表。
 2. 实现懒加载。
 3. 实现 COW fork。
+4. Alarm ：为 xv6 添加一个特性，周期性地给使用 CPU 时间的进程发送警告。
+
+    > 添加一个新的`sigalarm(interval, handler)`系统调用。如果某个应用调用了`sigalarm(n, fn)`，那么每当这个程序使用了`n`个“tick”的 CPU 时间，内核会使应用程序调用`fn`。当`fn`返回时，应用会在系统调用离开的地方恢复执行。tick 是 xv6 的绝对时间单位，由硬件始终产生中断的频率决定。如果应用调用了`sigalarm(0, 0)`，那么内核应该停止产生周期警告。
+
+    > 将`user/alarmtest.c`添加到 Makefile 中，在实现`sigalarm`和`sigreturn`系统调用后才能编译通过。
