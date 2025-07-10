@@ -191,7 +191,7 @@ kvminit_pagetable()
   pagetable_t pagetable = (pagetable_t)kalloc();
   memset(pagetable, 0, PGSIZE);
   kvmmap_pagetable(pagetable);
-  printf("kvminit_pagetable: done\n");
+  // printf("kvminit_pagetable: done\n");
   return pagetable;
 }
 

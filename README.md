@@ -86,3 +86,4 @@
 ## lab4
 
 1. 实现`backtrace`，在内核 panic 时打印调用栈。
+2. 实现`sigalarm`和`sigreturn`，在进程收到中断时执行相应的处理函数。

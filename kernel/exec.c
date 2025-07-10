@@ -21,7 +21,7 @@ int flags2perm(int flags)
 
 int exec(char *path, char **argv)
 {
-  printf("exec: %s\n", argv[0]);
+  // printf("exec: %s\n", argv[0]);
   char *s, *last;
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG], stackbase;
@@ -137,12 +137,13 @@ int exec(char *path, char **argv)
   p->trapframe->epc = elf.entry; // initial program counter = main
   p->trapframe->sp = sp;         // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
-
+  /*
   // print pagetable if pid == 1
   if (p->pid == 1)
   {
     vmprint(p->pagetable);
   }
+  */
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
 bad:

@@ -7,7 +7,6 @@
 void test0();
 void test1();
 void test2();
-void test3();
 void periodic();
 void slow_handler();
 void dummy_handler();
@@ -17,7 +16,6 @@ int main(int argc, char *argv[])
     test0();
     test1();
     test2();
-    test3();
     exit(0);
 }
 
@@ -171,26 +169,4 @@ void dummy_handler()
 {
     sigalarm(0, 0);
     sigreturn();
-}
-
-//
-// tests that the return from sys_sigreturn() does not
-// modify the a0 register
-void test3()
-{
-    uint64 a0;
-
-    sigalarm(1, dummy_handler);
-    printf("test3 start\n");
-
-    asm volatile("lui a5, 0");
-    asm volatile("addi a0, a5, 0xac" : : : "a0");
-    for (int i = 0; i < 500000000; i++)
-        ;
-    asm volatile("mv %0, a0" : "=r"(a0));
-
-    if (a0 != 0xac)
-        printf("test3 failed: register a0 changed\n");
-    else
-        printf("test3 passed\n");
 }

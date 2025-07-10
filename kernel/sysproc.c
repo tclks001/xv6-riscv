@@ -124,3 +124,21 @@ sys_sysinfo(void)
   }
   return 0;
 }
+
+// Alarm
+uint64
+sys_sigalarm(void)
+{
+  argint(0, &myproc()->alarm_interval);
+  argaddr(1, (void (*)())&myproc()->alarm_handler);
+  return 0;
+}
+
+// Alarm return
+uint64
+sys_sigreturn(void)
+{
+  memmove(myproc()->trapframe, myproc()->alarm_tf, sizeof(struct trapframe));
+  myproc()->is_alarming = 0;
+  return 0;
+}

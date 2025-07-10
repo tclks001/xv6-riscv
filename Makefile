@@ -153,6 +153,7 @@ UPROGS=\
 	$U/_calltest\
 	$U/_printftest\
 	$U/_bttest\
+	$U/_alarmtest\
 #	$U/_pwd\
 	
 	
